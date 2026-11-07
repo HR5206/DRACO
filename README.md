@@ -1,326 +1,35 @@
 # DRACO
-## Distributed Real-time Asset Calculation & Observation Engine
 
-> A distributed, event-driven financial risk engine built in Java that simulates how investment banks process live market data, continuously value portfolios, calculate risk, generate alerts, and maintain audit logs.
+I use DRACO to explore how a market-price update flows through a queue into portfolio valuation and threshold alerts. It is a Java simulation running in **one JVM**, with local worker threads partitioned by symbol.
 
----
+## Run the example
 
-# Overview
+Use JDK 21 (including `javac`), from this repository's root. On Linux/macOS or Git Bash:
 
-DRACO is a backend simulation of a real-time financial risk engine inspired by the systems used in investment banks such as Goldman Sachs, JPMorgan Chase, and Morgan Stanley.
-
-The system continuously generates market data, distributes incoming events across multiple worker threads, updates portfolio valuations, computes financial risk metrics, generates alerts when predefined thresholds are exceeded, and records every important system event through an immutable audit log.
-
-The primary objective of this project is to demonstrate concepts in:
-
-- Distributed Systems
-- Concurrent Programming
-- Event-Driven Architecture
-- Object-Oriented Design
-- Financial Risk Processing
-
----
-
-# Features
-
-- 📈 Live Market Data Simulation
-- ⚡ Producer-Consumer Architecture
-- 🧵 Multi-threaded Worker Processing
-- 🔀 Symbol-Based Workload Partitioning
-- 🗂 Thread-safe Market Data Cache
-- 💼 Portfolio Management
-- 💰 Portfolio Valuation Engine
-- 📊 Risk Calculation Engine
-- 🚨 Real-time Alert Generation
-- 📝 Audit Logging
-- 🔒 Immutable Domain Models
-- ⚙ Layered Service Architecture
-
----
-
-# Architecture
-
-```text
-                    +------------------------+
-                    | Market Data Producer   |
-                    +------------------------+
-                               |
-                               ▼
-                    +------------------------+
-                    |   Blocking Queue       |
-                    +------------------------+
-                               |
-                               ▼
-                    +------------------------+
-                    |      Dispatcher        |
-                    +------------------------+
-                               |
-          +--------------------+--------------------+
-          |                    |                    |
-          ▼                    ▼                    ▼
-     Worker Node 1        Worker Node 2       Worker Node 3
-          |                    |                    |
-          +--------------------+--------------------+
-                               |
-                               ▼
-                    +------------------------+
-                    |   Portfolio Manager    |
-                    +------------------------+
-                               |
-                               ▼
-              +--------------------------------------+
-              | Portfolio Valuation Service          |
-              +--------------------------------------+
-                               |
-                               ▼
-                    +------------------------+
-                    |     Risk Service       |
-                    +------------------------+
-                               |
-                               ▼
-                    +------------------------+
-                    |    Alert Service       |
-                    +------------------------+
-                               |
-                               ▼
-                    +------------------------+
-                    |    Audit Logger        |
-                    +------------------------+
+```sh
+mkdir -p out
+find src tests -name '*.java' > sources.txt
+javac -d out @sources.txt
+java -cp out src.Main
+java -cp out tests.RegressionTest
 ```
 
----
+The finite example submits three ticks, drains both workers, and exits. Its final market value is **32500.00**, with unrealized P&L **2500.00**. No accounts, external market feeds, or paid services are needed.
 
-# Project Structure
+## What happens to a tick
 
-```text
-src
-│
-├── cache
-│     └── MarketDataCache.java
-│
-├── config
-│     └── RiskConfiguration.java
-│
-├── dispatcher
-│     └── Dispatcher.java
-│
-├── distributed
-│     ├── Partitioner.java
-│     └── WorkerNode.java
-│
-├── model
-│     ├── Account.java
-│     ├── Alert.java
-│     ├── AlertType.java
-│     ├── AuditEvent.java
-│     ├── EventType.java
-│     ├── MarketTick.java
-│     ├── Portfolio.java
-│     ├── PortfolioValuationResult.java
-│     ├── Position.java
-│     ├── RiskResult.java
-│     └── ValuationResult.java
-│
-├── producer
-│     └── MarketDataProducer.java
-│
-├── queue
-│     └── MarketQueue.java
-│
-├── service
-│     ├── AlertService.java
-│     ├── AuditLogger.java
-│     ├── PortfolioManager.java
-│     ├── PortfolioValuationService.java
-│     ├── RiskService.java
-│     └── ValuationService.java
-│
-└── main
-      └── Main.java
-```
+`Dispatcher` chooses a partition using the symbol; the partition owner receives the tick in a bounded FIFO queue. Workers call `PortfolioManager`, which updates the shared price cache and values affected portfolios under one lock. This makes each update and its resulting valuation consistent with other worker updates. It also deliberately serializes valuation; extra workers do not imply more valuation throughput.
 
----
+I keep cost basis separate from current value. Exposure is total long-position market value; concentration is the largest position divided by exposure, or zero for an empty portfolio. The weighted risk score and alert thresholds are illustrative rules, not a calibrated financial risk model.
 
-# Workflow
+## Checks and boundaries
 
-```text
-Market Tick Generated
-          │
-          ▼
-Added to Blocking Queue
-          │
-          ▼
-Dispatcher assigns Worker
-          │
-          ▼
-Worker updates Market Cache
-          │
-          ▼
-Portfolio Manager processes affected portfolios
-          │
-          ▼
-Portfolio Valuation
-          │
-          ▼
-Risk Calculation
-          │
-          ▼
-Alert Generation
-          │
-          ▼
-Audit Event Logged
-```
+The regression runner checks queue draining, FIFO updates, P&L, empty portfolios, missing prices, and rejection after shutdown. Audit output includes the event type and portfolio instead of Java object addresses.
 
----
+Positions are configured before processing starts. Prices and positions must be finite/nonnegative as appropriate; short positions are outside this model. This example uses floating-point values, not accounting-grade decimal money.
 
-# Technologies Used
+There is no network distribution, durable event log, replay, or automatic failover. Audit records live in memory. `HeartBeatManager` and `RecoveryManager` are early sketches and are not wired into the demo; changing a partition owner does not recover queued messages. A failed valuation is reported during worker shutdown. Cross-symbol processing order is unspecified.
 
-- Java
-- Multithreading
-- BlockingQueue
-- ConcurrentHashMap
-- Collections Framework
-- Object-Oriented Programming
-- Event-Driven Architecture
-- Producer-Consumer Pattern
-- Distributed Processing Concepts
+## Where I would extend it
 
----
-
-# Core Concepts Demonstrated
-
-## Java
-
-- Classes & Objects
-- Inheritance
-- Encapsulation
-- Immutable Objects
-- Collections
-- Enums
-
-## Concurrency
-
-- Threads
-- Thread Synchronization
-- BlockingQueue
-- ConcurrentHashMap
-- Worker Threads
-- Producer-Consumer Pattern
-
-## Distributed Systems
-
-- Workload Partitioning
-- Horizontal Scaling
-- Worker Architecture
-- Event Processing
-- Fault Tolerance Concepts
-
-## Software Engineering
-
-- Layered Architecture
-- Separation of Concerns
-- SOLID Principles
-- Service-Oriented Design
-- Immutable DTOs
-
----
-
-# Financial Concepts
-
-The project demonstrates several financial concepts including:
-
-- Market Data Processing
-- Portfolio Management
-- Cost Basis
-- Market Value
-- Unrealized Profit & Loss
-- Exposure Calculation
-- Concentration Risk
-- Risk Scoring
-- Real-Time Risk Monitoring
-
----
-
-# Sample Output
-
-```text
-========================================
-DRACO Risk Engine Started
-========================================
-
-Market Tick:
-TSLA 610 -> 615
-
-Worker 2 processing TSLA
-
-Portfolio PORT-002 updated
-
-Exposure: 1,245,000
-
-Concentration Risk: 0.74
-
-Alert Generated:
-HIGH_EXPOSURE
-
-Audit Event Logged
-```
-
----
-
-# Future Improvements
-
-- Kafka-based Event Streaming
-- Redis Market Data Cache
-- PostgreSQL Audit Storage
-- Spring Boot REST APIs
-- Docker Support
-- Kubernetes Deployment
-- Prometheus Metrics
-- Grafana Dashboard
-- Portfolio Symbol Index
-- Incremental Portfolio Valuation
-- WebSocket Live Dashboard
-- Distributed Cache Synchronization
-
----
-
-# Learning Outcomes
-
-This project demonstrates understanding of:
-
-- Concurrent Programming
-- Distributed Backend Systems
-- Financial Risk Engines
-- Event-Driven Architecture
-- Thread Safety
-- Java Collections
-- Backend Software Design
-- Real-Time Processing
-
----
-
-# Resume Description
-
-**DRACO** is a distributed event-driven financial risk engine implemented in Java that simulates real-time market data ingestion, portfolio valuation, risk scoring, alert generation, and audit logging using multithreading, concurrent data structures, and worker-based partitioning.
-
----
-
-# How to Run
-
-```bash
-git clone <repository-url>
-
-cd DRACO
-
-javac src/main/Main.java
-
-java src.main.Main
-```
-
----
-
-# Author
-
-**Harish Raghav**
-
-Developed as a backend systems project to explore distributed systems, concurrent programming, and financial risk processing in Java.
+My next step is an explicit event sequence and replay test before adding a message broker. A console recording is sufficient for this repository; hosting a permanent service would not demonstrate the queue's correctness better.
