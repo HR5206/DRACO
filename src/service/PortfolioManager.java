@@ -23,7 +23,9 @@ public class PortfolioManager{
         this.riskService = riskService;
     }
    
-    public void processTick(MarketTick tick) {
+    public synchronized void processTick(MarketTick tick) {
+        // Keep cache updates and the resulting valuation in one critical section.
+        src.cache.MarketDataCache.updatePrice(tick);
 
         for (Account account : accounts) 
         {
@@ -36,7 +38,7 @@ public class PortfolioManager{
                 List<Alert> alerts = alertService.generateAlerts(portfolio, risk);
 
                 for (Alert alert : alerts) {
-                    System.out.println(alert);
+                    System.out.println(alert.getPortfolioId() + " | " + alert.getAlertType() + " | " + alert.getMessage());
                 }
             }
         }

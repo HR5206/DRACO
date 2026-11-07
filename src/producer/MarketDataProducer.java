@@ -59,7 +59,7 @@ public class MarketDataProducer extends Thread{
 
             try {
                 dispatcher.dispatch(tick);
-                MarketDataCache.updatePrice(tick);
+
                 Thread.sleep(1000);
             } catch (InterruptedException e) {
                 interrupt();

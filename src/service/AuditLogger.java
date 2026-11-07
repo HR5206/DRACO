@@ -11,6 +11,6 @@ public class AuditLogger {
 
     public void log(AuditEvent event) {
         history.add(event);
-        System.out.println(event);
+        System.out.println(event.getTimestamp() + " | " + event.getEventType() + " | " + event.getPortfolioId() + " | " + event.getDescription());
     }
 }

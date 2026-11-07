@@ -7,7 +7,9 @@ public class Position {
 
     public Position(String symbol, int quantity, double averagePrice) {
         this.symbol = symbol;
+        if (quantity < 0) throw new IllegalArgumentException("Only long positions are supported");
         this.quantity = quantity;
+        if (!Double.isFinite(averagePrice) || averagePrice < 0) throw new IllegalArgumentException("Invalid average price");
         this.averagePrice = averagePrice;
     }
 
@@ -24,10 +26,12 @@ public class Position {
     }
 
     public void setQuantity(int quantity) {
+        if (quantity < 0) throw new IllegalArgumentException("Only long positions are supported");
         this.quantity = quantity;
     }
 
     public void setAveragePrice(double averagePrice) {
+        if (!Double.isFinite(averagePrice) || averagePrice < 0) throw new IllegalArgumentException("Invalid average price");
         this.averagePrice = averagePrice;
     }
 }
